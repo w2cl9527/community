@@ -2,12 +2,17 @@ package life.majiang.community.controller;
 
 import life.majiang.community.dto.AccessTokenDTO;
 import life.majiang.community.dto.GithubUser;
+import life.majiang.community.mapper.UserMapper;
+import life.majiang.community.model.User;
 import life.majiang.community.provider.GithubProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.UUID;
 
 /**
  * 点击登录后，即会回调我们的url地址，地址栏中携带code，需要进行解析
@@ -21,7 +26,8 @@ public class AuthorizeController {
     
     @Autowired
     private GithubProvider githubProvider;
-
+    @Autowired
+    private UserMapper userMapper;
     //@Value：在配置文件中读取key为github.client.id的value
     @Value("${github.client.id}")
     private String clientId;
@@ -31,7 +37,8 @@ public class AuthorizeController {
     private String redirect;
     
     @GetMapping("/callback")
-    public String callback(@RequestParam(name="code")String code,@RequestParam(name="state")String state){
+    public String callback(@RequestParam(name="code")String code, @RequestParam(name="state")String state,
+                           HttpServletRequest request){
         AccessTokenDTO accessTokenDTO = new AccessTokenDTO();
         accessTokenDTO.setClient_id(clientId);
         accessTokenDTO.setClient_secret(clientSecret);
@@ -39,8 +46,23 @@ public class AuthorizeController {
         accessTokenDTO.setRedirect_uri(redirect);
         accessTokenDTO.setState(state);
         String accessToken = githubProvider.getAccessToken(accessTokenDTO);
-        GithubUser user = githubProvider.getUser(accessToken);
-        System.out.println(user.getName());
-        return "index";
+        GithubUser githubUser = githubProvider.getUser(accessToken);
+        //如果user不为空即登陆成功
+        if(githubUser != null){
+            //将user存入数据库
+            User user = new User();
+            user.setToken(UUID.randomUUID().toString());
+            user.setName(githubUser.getName());
+            user.setAccountId(String.valueOf(githubUser.getId()));
+            user.setGmtCreate(System.currentTimeMillis());
+            user.setGmtModified(user.getGmtCreate());
+            userMapper.insert(user);
+            //登录成功，写cookie和session
+            request.getSession().setAttribute("githubUser",githubUser);
+            return "redirect:/";
+        }else{
+            //登录失败，重新登录
+            return "redirect:/";
+        }
     }
 }

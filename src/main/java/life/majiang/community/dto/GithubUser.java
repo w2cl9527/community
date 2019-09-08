@@ -7,6 +7,15 @@ public class GithubUser {
     //描述
     private String dio;
 
+    @Override
+    public String toString() {
+        return "GithubUser{" +
+                "name='" + name + '\'' +
+                ", id=" + id +
+                ", dio='" + dio + '\'' +
+                '}';
+    }
+
     public String getName() {
         return name;
     }
